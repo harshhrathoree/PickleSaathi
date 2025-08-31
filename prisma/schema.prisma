@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or "mysql" based on your setup
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  name      String
+  username  String   @unique
+  email     String   @unique
+  image     String?
+  bio       String?
+  location  String   @default("Ahmedabad")
+  skillLevel SkillLevel @default(BEGINNER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Player connections (following system)
+  followers Follows[] @relation("UserFollowers")
+  following Follows[] @relation("UserFollowing")
+
+  // Games
+  gamesCreated     Game[]            @relation("GameCreator")
+  gameParticipants GameParticipant[]
+
+  // Venues
+  venuesCreated Venue[] @relation("VenueCreator")
+  venueReviews  VenueReview[]
+
+  // Notifications
+  notifications        Notification[] @relation("NotificationUser")
+  createdNotifications Notification[] @relation("NotificationCreator")
+
+  @@map("users")
+}
+
+model Follows {
+  id          String @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Game {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  sport       Sport      @default(PICKLEBALL)
+  skillLevel  SkillLevel
+  maxPlayers  Int        @default(4)
+  currentPlayers Int     @default(1)
+  location    String
+  venueId     String?
+  gameDate    DateTime
+  duration    Int        @default(60) // duration in minutes
+  isPrivate   Boolean    @default(false)
+  status      GameStatus @default(OPEN)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  creatorId String
+  creator   User   @relation("GameCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  venue        Venue?            @relation(fields: [venueId], references: [id])
+  participants GameParticipant[]
+
+  @@map("games")
+}
+
+model GameParticipant {
+  id        String   @id @default(cuid())
+  gameId    String
+  playerId  String
+  status    ParticipantStatus @default(PENDING)
+  joinedAt  DateTime @default(now())
+
+  game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player User @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, playerId])
+  @@map("game_participants")
+}
+
+model Venue {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  location    String
+  latitude    Float?
+  longitude   Float?
+  sports      Sport[] @default([PICKLEBALL])
+  facilities  String[] // ["parking", "restrooms", "equipment_rental", "lighting"]
+  priceRange  PriceRange @default(BUDGET)
+  rating      Float   @default(0)
+  totalReviews Int    @default(0)
+  isVerified  Boolean @default(false)
+  contactInfo String?
+  website     String?
+  operatingHours Json? // Store as JSON for flexible hours
+  images      String[] // Array of image URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation("VenueCreator", fields: [creatorId], references: [id])
+
+  games   Game[]
+  reviews VenueReview[]
+
+  @@map("venues")
+}
+
+model VenueReview {
+  id        String   @id @default(cuid())
+  venueId   String
+  userId    String
+  rating    Int      // 1-5 stars
+  comment   String?
+  createdAt DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, userId]) // One review per user per venue
+  @@map("venue_reviews")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  userId    String           // user receiving the notification
+  creatorId String           // user who triggered the notification
+  gameId    String?          // for game-related notifications
+  venueId   String?          // for venue-related notifications
+  message   String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user    User   @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User   @relation("NotificationCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// Enums
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+}
+
+enum Sport {
+  PICKLEBALL
+  TENNIS
+  BADMINTON
+  TABLE_TENNIS
+  SQUASH
+  BASKETBALL
+  FOOTBALL
+  CRICKET
+}
+
+enum GameStatus {
+  OPEN
+  FULL
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipantStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  REMOVED
+}
+
+enum PriceRange {
+  FREE
+  BUDGET      // Under ₹200/hour
+  MODERATE    // ₹200-500/hour
+  PREMIUM     // ₹500-1000/hour
+  LUXURY      // Above ₹1000/hour
+}
+
+enum NotificationType {
+  PLAYER_CONNECTION
+  GAME_INVITATION
+  GAME_REQUEST_APPROVED
+  GAME_REQUEST_DECLINED
+  GAME_CANCELLED
+  GAME_REMINDER
+  VENUE_REVIEW
+  SYSTEM_UPDATE
+}
