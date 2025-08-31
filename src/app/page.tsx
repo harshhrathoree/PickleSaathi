@@ -5,8 +5,8 @@ import Image from "next/image";
 export default function Home() {
   return (
     <>
-      <Navbar />
-      <main className="flex flex-col md:flex-row justify-between items-center h-[80vh] px-6 md:px-16">
+      
+      <main className="flex flex-col md:flex-row justify-between items-center min-h-[60vh] md:h-[80vh] px-6 md:px-16 pb-4 md:pb-0">
         {/* Left Content */}
         <div className="flex flex-col gap-6 max-w-lg">
           {/* Title */}
@@ -27,7 +27,7 @@ export default function Home() {
               alt="Sports community"
               width={500}
               height={500}
-              className="rounded-2xl shadow-lg mt-4"
+              className="rounded-2xl shadow-lg"
             />
           </div>
         </div>

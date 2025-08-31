@@ -44,22 +44,29 @@ function MobileNavbar() {
             <MenuIcon className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="w-[300px]">
-          <SheetHeader>
-            <SheetTitle>Menu</SheetTitle>
+        <SheetContent 
+          side="right" 
+          className="w-[300px] bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-l border-gray-200 dark:border-gray-700"
+        >
+          <SheetHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
+            <SheetTitle className="text-gray-900 dark:text-gray-100">Menu</SheetTitle>
           </SheetHeader>
 
           <div className="mt-6 space-y-6">
             {/* Location Selector */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-gray-300 shadow-sm">
-              <MapPin className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Ahmedabad</span>
-              <span className="text-xs text-gray-400 italic">(More soon)</span>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100/80 dark:bg-gray-800/80 border border-gray-300 dark:border-gray-600 shadow-sm">
+              <MapPin className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ahmedabad</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic">(More soon)</span>
             </div>
 
             {/* Nav Links */}
             <nav className="flex flex-col space-y-4">
-              <Button variant="ghost" className="flex items-center gap-3 justify-start" asChild>
+              <Button 
+                variant="ghost" 
+                className="flex items-center gap-3 justify-start hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300" 
+                asChild
+              >
                 <Link href="/">
                   <HomeIcon className="w-4 h-4" />
                   Home
@@ -68,13 +75,21 @@ function MobileNavbar() {
 
               {isSignedIn ? (
                 <>
-                  <Button variant="ghost" className="flex items-center gap-3 justify-start" asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="flex items-center gap-3 justify-start hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300" 
+                    asChild
+                  >
                     <Link href="/notifications">
                       <BellIcon className="w-4 h-4" />
                       Notifications
                     </Link>
                   </Button>
-                  <Button variant="ghost" className="flex items-center gap-3 justify-start" asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="flex items-center gap-3 justify-start hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300" 
+                    asChild
+                  >
                     <Link
                       href={`/profile/${
                         user?.username ?? user?.emailAddresses[0].emailAddress.split("@")[0]
@@ -87,7 +102,7 @@ function MobileNavbar() {
                   <SignOutButton>
                     <Button
                       variant="ghost"
-                      className="flex items-center gap-3 justify-start w-full"
+                      className="flex items-center gap-3 justify-start w-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                     >
                       <LogOutIcon className="w-4 h-4" />
                       Logout
@@ -96,7 +111,7 @@ function MobileNavbar() {
                 </>
               ) : (
                 <SignInButton mode="modal">
-                  <Button variant="default" className="w-full">
+                  <Button variant="default" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                     Sign In
                   </Button>
                 </SignInButton>

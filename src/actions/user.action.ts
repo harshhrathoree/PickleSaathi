@@ -1,3 +1,4 @@
+// app/actions/user.actions.ts
 "use server";
 
 import { prisma } from "@/lib/prisma";
@@ -11,14 +12,30 @@ export async function syncUser() {
 
     if (!userId || !user) return;
 
+    // Check if user exists by email instead of clerkId
     const existingUser = await prisma.user.findUnique({
       where: {
-        clerkId: userId,
+        email: user.emailAddresses[0].emailAddress,
       },
     });
 
-    if (existingUser) return existingUser;
+    if (existingUser) {
+      // Update the user with clerkId if it doesn't exist
+      if (!existingUser.clerkId) {
+        const updatedUser = await prisma.user.update({
+          where: {
+            id: existingUser.id,
+          },
+          data: {
+            clerkId: userId,
+          },
+        });
+        return updatedUser;
+      }
+      return existingUser;
+    }
 
+    // Create new user with clerkId
     const dbUser = await prisma.user.create({
       data: {
         clerkId: userId,
@@ -26,8 +43,13 @@ export async function syncUser() {
         username: user.username ?? user.emailAddresses[0].emailAddress.split("@")[0],
         email: user.emailAddresses[0].emailAddress,
         image: user.imageUrl,
-        location: "Ahmedabad", // Default location for PickleSaathi
-        skillLevel: "BEGINNER", // Default skill level
+        location: "Ahmedabad",
+        skillLevel: "BEGINNER",
+        phone: "",
+        bio: "",
+        playingStyle: "",
+        rating: 0,
+        totalReviews: 0,
       },
     });
 
@@ -37,193 +59,238 @@ export async function syncUser() {
   }
 }
 
-export async function getUserByClerkId(clerkId: string) {
-  return prisma.user.findUnique({
-    where: {
-      clerkId,
-    },
-    include: {
-      _count: {
-        select: {
-          followers: true,
-          following: true,
-          gamesCreated: true,
-          gameParticipants: true,
+export async function updateUserProfile(data: {
+  name?: string;
+  phone?: string;
+  bio?: string;
+  skillLevel?: string;
+  playingStyle?: string;
+  location?: string;
+}) {
+  try {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        clerkId: userId,
+      },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.phone && { phone: data.phone }),
+        ...(data.bio && { bio: data.bio }),
+        ...(data.skillLevel && { skillLevel: data.skillLevel }),
+        ...(data.playingStyle && { playingStyle: data.playingStyle }),
+        ...(data.location && { location: data.location }),
+      },
+    });
+
+    revalidatePath("/profile");
+    return updatedUser;
+  } catch (error) {
+    console.log("Error in updateUserProfile", error);
+    throw error;
+  }
+}
+
+export async function getUserProfile() {
+  try {
+    const { userId } = await auth();
+    if (!userId) return null;
+
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+      include: {
+        photos: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 4,
+        },
+        bookings: {
+          include: {
+            venue: true,
+          },
+          orderBy: {
+            date: "desc",
+          },
         },
       },
-    },
-  });
+    });
+
+    return user;
+  } catch (error) {
+    console.log("Error in getUserProfile", error);
+    return null;
+  }
 }
 
-export async function getDbUserId() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return null;
+export async function addUserPhoto(imageUrl: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
 
-  const user = await getUserByClerkId(clerkId);
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
-  if (!user) throw new Error("User not found");
+    if (!user) throw new Error("User not found");
 
-  return user.id;
+    const photo = await prisma.userPhoto.create({
+      data: {
+        imageUrl,
+        userId: user.id,
+      },
+    });
+
+    revalidatePath("/profile");
+    return photo;
+  } catch (error) {
+    console.log("Error in addUserPhoto", error);
+    throw error;
+  }
 }
 
-// export async function getNearbyPlayers() {
-//   try {
-//     const userId = await getDbUserId();
+export async function deleteUserPhoto(photoId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
 
-//     if (!userId) return [];
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
-//     const currentUser = await prisma.user.findUnique({
-//       where: { id: userId },
-//       select: { location: true },
-//     });
+    if (!user) throw new Error("User not found");
 
-//     if (!currentUser) return [];
+    const photo = await prisma.userPhoto.findFirst({
+      where: {
+        id: photoId,
+        userId: user.id,
+      },
+    });
 
-//     // Find players in the same location excluding ourselves
-//     const nearbyPlayers = await prisma.user.findMany({
-//       where: {
-//         AND: [
-//           { NOT: { id: userId } },
-//           { location: currentUser.location },
-//         ],
-//       },
-//       select: {
-//         id: true,
-//         name: true,
-//         username: true,
-//         image: true,
-//         skillLevel: true,
-//         location: true,
-//         _count: {
-//           select: {
-//             followers: true,
-//             gamesCreated: true,
-//           },
-//         },
-//       },
-//       take: 6,
-//       orderBy: {
-//         createdAt: 'desc',
-//       },
-//     });
+    if (!photo) throw new Error("Photo not found");
 
-//     return nearbyPlayers;
-//   } catch (error) {
-//     console.log("Error fetching nearby players", error);
-//     return [];
-//   }
-// }
+    await prisma.userPhoto.delete({
+      where: {
+        id: photoId,
+      },
+    });
 
-// export async function connectWithPlayer(targetUserId: string) {
-//   try {
-//     const userId = await getDbUserId();
+    revalidatePath("/profile");
+    return { success: true };
+  } catch (error) {
+    console.log("Error in deleteUserPhoto", error);
+    throw error;
+  }
+}
 
-//     if (!userId) return { success: false, error: "User not authenticated" };
+export async function updateUserRating(rating: number, review: string, reviewerId: string) {
+  try {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
 
-//     if (userId === targetUserId) {
-//       return { success: false, error: "You cannot connect with yourself" };
-//     }
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
-//     const existingConnection = await prisma.follows.findUnique({
-//       where: {
-//         followerId_followingId: {
-//           followerId: userId,
-//           followingId: targetUserId,
-//         },
-//       },
-//     });
+    if (!user) throw new Error("User not found");
 
-//     if (existingConnection) {
-//       // Disconnect
-//       await prisma.follows.delete({
-//         where: {
-//           followerId_followingId: {
-//             followerId: userId,
-//             followingId: targetUserId,
-//           },
-//         },
-//       });
-//     } else {
-//       // Connect
-//       await prisma.$transaction([
-//         prisma.follows.create({
-//           data: {
-//             followerId: userId,
-//             followingId: targetUserId,
-//           },
-//         }),
+    const existingRating = await prisma.userRating.findFirst({
+      where: {
+        userId: user.id,
+        reviewerId,
+      },
+    });
 
-//         prisma.notification.create({
-//           data: {
-//             type: "PLAYER_CONNECTION",
-//             userId: targetUserId, // user being connected with
-//             creatorId: userId, // user initiating connection
-//           },
-//         }),
-//       ]);
-//     }
+    if (existingRating) {
+      await prisma.userRating.update({
+        where: {
+          id: existingRating.id,
+        },
+        data: {
+          rating,
+          review,
+        },
+      });
+    } else {
+      await prisma.userRating.create({
+        data: {
+          rating,
+          review,
+          userId: user.id,
+          reviewerId,
+        },
+      });
+    }
 
-//     revalidatePath("/");
-//     return { success: true };
-//   } catch (error) {
-//     console.log("Error in connectWithPlayer", error);
-//     return { success: false, error: "Error connecting with player" };
-//   }
-// }
+    const ratings = await prisma.userRating.findMany({
+      where: {
+        userId: user.id,
+      },
+    });
 
-// export async function updateUserProfile(profileData: {
-//   name?: string;
-//   bio?: string;
-//   skillLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "PROFESSIONAL";
-//   location?: string;
-// }) {
-//   try {
-//     const userId = await getDbUserId();
+    const averageRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
 
-//     if (!userId) return { success: false, error: "User not authenticated" };
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        rating: averageRating,
+        totalReviews: ratings.length,
+      },
+    });
 
-//     const updatedUser = await prisma.user.update({
-//       where: { id: userId },
-//       data: profileData,
-//     });
+    revalidatePath("/profile");
+    return { success: true, averageRating, totalReviews: ratings.length };
+  } catch (error) {
+    console.log("Error in updateUserRating", error);
+    throw error;
+  }
+}
 
-//     revalidatePath("/profile");
-//     return { success: true, user: updatedUser };
-//   } catch (error) {
-//     console.log("Error updating user profile", error);
-//     return { success: false, error: "Error updating profile" };
-//   }
-// }
+export async function getUserRatings() {
+  try {
+    const { userId } = await auth();
+    if (!userId) return null;
 
-// export async function getUserStats(userId: string) {
-//   try {
-//     const stats = await prisma.user.findUnique({
-//       where: { id: userId },
-//       select: {
-//         _count: {
-//           select: {
-//             gamesCreated: true,
-//             gameParticipants: true,
-//             followers: true,
-//             following: true,
-//           },
-//         },
-//       },
-//     });
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
-//     return stats?._count || {
-//       gamesCreated: 0,
-//       gameParticipants: 0,
-//       followers: 0,
-//       following: 0,
-//     };
-//   } catch (error) {
-//     console.log("Error fetching user stats", error);
-//     return {
-//       gamesCreated: 0,
-//       gameParticipants: 0,
-//       followers: 0,
-//       following: 0,
-//     };
-//   }
-// }
+    if (!user) return null;
+
+    const ratings = await prisma.userRating.findMany({
+      where: {
+        userId: user.id,
+      },
+      include: {
+        reviewer: {
+          select: {
+            name: true,
+            image: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return ratings;
+  } catch (error) {
+    console.log("Error in getUserRatings", error);
+    return null;
+  }
+}
